@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Class Records</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            board: '#12352E',   // chalkboard green
+            chalk: '#E8EFEA',
+            paper: '#EAEFF1',   // page background
+            ink: '#18262E',
+            mute: '#566B76',
+            line: '#D3DCE1',
+            mark: '#F4C542',    // marker yellow, used for focus
+            pencil: '#B3372B'   // red pencil, used for warnings
+          },
+          fontFamily: {
+            display: ['"Bricolage Grotesque"', 'system-ui', 'sans-serif'],
+            sans: ['"IBM Plex Sans"', 'system-ui', 'sans-serif']
+          }
+        }
+      }
+    };
+  </script>
+
+  <style type="text/tailwindcss">
+    @layer components {
+      .btn { @apply inline-flex items-center justify-center gap-2 rounded-md px-3.5 py-2 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mark; }
+      .btn-solid { @apply btn bg-board text-chalk hover:bg-[#1C4A40]; }
+      .btn-ghost { @apply btn border border-chalk/30 text-chalk hover:bg-chalk/10; }
+      .btn-line { @apply btn border border-line bg-white text-ink hover:bg-paper; }
+      .btn-danger { @apply btn border border-pencil/40 bg-white text-pencil hover:bg-[#F8E4E1]; }
+      .field { @apply w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink placeholder:text-mute/70 focus:outline focus:outline-2 focus:outline-mark focus:border-ink; }
+      .label { @apply mb-1 block text-sm font-medium text-ink; }
+      .panel { @apply rounded-lg border border-line bg-white; }
+      .th { @apply px-3 py-2.5 text-left text-sm font-semibold text-ink bg-[#F4F7F8] border-b border-line whitespace-nowrap; }
+      .td { @apply px-3 py-2 text-sm border-b border-line/70 whitespace-nowrap; }
+      .pill { @apply inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded px-1.5 text-xs font-semibold; }
+    }
+    .tnum { font-variant-numeric: tabular-nums; }
+    .l-A { background:#D8EEE5; color:#0D5444; } .bar-A { background:#1E7A5F; }
+    .l-B { background:#E2EFD3; color:#385F17; } .bar-B { background:#6C9A3A; }
+    .l-C { background:#F7ECC2; color:#6E5200; } .bar-C { background:#D1A21C; }
+    .l-D { background:#F9DDC6; color:#7F3C0E; } .bar-D { background:#D97A2B; }
+    .l-F { background:#F5D6D2; color:#8A261C; } .bar-F { background:#B3372B; }
+
+    /* gradebook: ruled ledger with a frozen student column */
+    .ledger td.sticky-col, .ledger th.sticky-col { position: sticky; left: 0; z-index: 1; box-shadow: 1px 0 0 #D3DCE1; }
+    .ledger td.sticky-col { background: #fff; }
+    .ledger tbody tr:hover td { background: #F6F9FA; }
+    .ledger tbody tr:hover td.sticky-col { background: #F6F9FA; }
+    .grade-input { width: 4.75rem; border: 1px solid transparent; border-radius: 4px; padding: 4px 6px; text-align: right; background: transparent; font-variant-numeric: tabular-nums; }
+    .grade-input:hover { border-color: #D3DCE1; background: #fff; }
+    .grade-input:focus { outline: 2px solid #F4C542; border-color: #18262E; background: #fff; }
+    .grade-input::-webkit-outer-spin-button, .grade-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .grade-input { -moz-appearance: textfield; }
+
+    .att { width: 2.25rem; height: 2rem; border-radius: 4px; font-size: 0.8rem; font-weight: 600; border: 1px dashed #B9C6CD; background: #fff; color: #566B76; }
+    .att:focus-visible { outline: 2px solid #F4C542; outline-offset: 1px; }
+    .att-p { background: #D8EEE5; color: #0D5444; border: 1px solid #A8D3C3; }
+    .att-a { background: #F5D6D2; color: #8A261C; border: 1px solid #E5A9A2; }
+
+    dialog { border: 0; border-radius: 12px; padding: 0; max-width: 28rem; width: calc(100% - 2rem); box-shadow: 0 20px 50px rgba(18,53,46,.3); }
+    dialog::backdrop { background: rgba(24, 38, 46, .55); }
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+  </style>
+</head>
+
+<body class="bg-paper font-sans text-ink antialiased min-h-screen">
+
+  <!-- Shown if the WebAssembly module has not been built -->
+  <div id="setup-error" class="hidden bg-pencil text-white">
+    <div class="mx-auto max-w-7xl px-4 py-3 text-sm sm:px-6" id="setup-error-text"></div>
+  </div>
+
+  <header class="bg-board text-chalk">
+    <div class="mx-auto max-w-7xl px-4 pt-6 sm:px-6">
+      <div class="flex flex-wrap items-end justify-between gap-4">
+        <div class="min-w-0 flex-1">
+          <p class="text-sm text-chalk/70">Class records</p>
+          <input id="class-name" type="text" value="My class" maxlength="60" aria-label="Class name"
+                 class="mt-1 w-full max-w-lg border-b border-transparent bg-transparent font-display text-3xl font-bold outline-none hover:border-chalk/30 focus:border-mark sm:text-4xl">
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <label class="btn-ghost cursor-pointer focus-within:outline focus-within:outline-2 focus-within:outline-mark">
+            Import file
+            <input id="import-file" type="file" accept=".json,.csv,application/json,text/csv" class="sr-only">
+          </label>
+          <button id="export-json" class="btn-ghost" type="button">Export JSON</button>
+          <button id="export-csv" class="btn-ghost" type="button">Export CSV</button>
+          <button id="load-sample" class="btn-ghost" type="button">Load sample class</button>
+          <button id="clear-all" class="btn-ghost" type="button">Clear all</button>
+        </div>
+      </div>
+
+      <nav class="mt-6 flex gap-1 overflow-x-auto" role="tablist" aria-label="Sections">
+        <button role="tab" data-tab="overview"   class="tab" type="button">Overview</button>
+        <button role="tab" data-tab="roster"     class="tab" type="button">Roster</button>
+        <button role="tab" data-tab="gradebook"  class="tab" type="button">Gradebook</button>
+        <button role="tab" data-tab="attendance" class="tab" type="button">Attendance</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+
+    <!-- OVERVIEW -->
+    <section data-panel="overview" role="tabpanel" class="space-y-6">
+      <dl id="ov-stats" class="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-line bg-line lg:grid-cols-4"></dl>
+
+      <div class="grid gap-6 lg:grid-cols-3">
+        <div class="panel p-5">
+          <h2 class="font-display text-lg font-bold">Grade distribution</h2>
+          <div id="ov-dist" class="mt-4 space-y-3"></div>
+        </div>
+        <div class="panel p-5">
+          <h2 class="font-display text-lg font-bold">Standings</h2>
+          <ol id="ov-standings" class="mt-4 space-y-2"></ol>
+        </div>
+        <div class="panel p-5">
+          <h2 class="font-display text-lg font-bold">Assignment averages</h2>
+          <div id="ov-assign" class="mt-4 space-y-3"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ROSTER -->
+    <section data-panel="roster" role="tabpanel" class="hidden space-y-4">
+      <form id="student-form" class="panel flex flex-wrap items-end gap-3 p-4" autocomplete="off">
+        <div class="w-32">
+          <label class="label" for="new-id">Student ID</label>
+          <input id="new-id" class="field" required maxlength="24" placeholder="S009">
+        </div>
+        <div class="min-w-[12rem] flex-1">
+          <label class="label" for="new-name">Full name</label>
+          <input id="new-name" class="field" required maxlength="60" placeholder="Ada Lovelace">
+        </div>
+        <button class="btn-solid" type="submit">Add student</button>
+        <div class="ml-auto">
+          <label class="label" for="sort-mode">Sort roster by</label>
+          <select id="sort-mode" class="field">
+            <option value="" selected disabled>Choose…</option>
+            <option value="0">Name (A–Z)</option>
+            <option value="1">Student ID</option>
+            <option value="2">Final grade (high to low)</option>
+          </select>
+        </div>
+      </form>
+      <div class="panel overflow-x-auto" id="roster-table"></div>
+    </section>
+
+    <!-- GRADEBOOK -->
+    <section data-panel="gradebook" role="tabpanel" class="hidden space-y-4">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <p id="weight-note" class="text-sm text-mute"></p>
+        <button id="add-assignment" class="btn-solid" type="button">Add assignment</button>
+      </div>
+      <div class="panel overflow-x-auto" id="grade-table"></div>
+      <p class="text-sm text-mute">Final grades use only the assignments that have a score, so a missing score is left out rather than counted as zero. Clear a cell to remove a score.</p>
+    </section>
+
+    <!-- ATTENDANCE -->
+    <section data-panel="attendance" role="tabpanel" class="hidden space-y-4">
+      <form id="day-form" class="panel flex flex-wrap items-end gap-3 p-4">
+        <div>
+          <label class="label" for="new-day">Class date</label>
+          <input id="new-day" type="date" class="field" required>
+        </div>
+        <button class="btn-solid" type="submit">Add day</button>
+        <p class="text-sm text-mute sm:ml-auto">Select a cell to cycle through present, absent, and not marked.</p>
+      </form>
+      <div class="panel overflow-x-auto" id="att-table"></div>
+    </section>
+  </main>
+
+  <!-- Student dialog -->
+  <dialog id="student-dialog" aria-labelledby="student-dialog-title">
+    <form id="student-edit-form" class="p-6" autocomplete="off">
+      <h2 id="student-dialog-title" class="font-display text-xl font-bold">Edit student</h2>
+      <input type="hidden" id="edit-student-index">
+      <div class="mt-4 space-y-3">
+        <div><label class="label" for="edit-student-id">Student ID</label><input id="edit-student-id" class="field" required maxlength="24"></div>
+        <div><label class="label" for="edit-student-name">Full name</label><input id="edit-student-name" class="field" required maxlength="60"></div>
+      </div>
+      <div class="mt-6 flex justify-end gap-2">
+        <button type="button" class="btn-line" data-close>Cancel</button>
+        <button type="submit" class="btn-solid">Save student</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Assignment dialog -->
+  <dialog id="assignment-dialog" aria-labelledby="assignment-dialog-title">
+    <form id="assignment-form" class="p-6" autocomplete="off">
+      <h2 id="assignment-dialog-title" class="font-display text-xl font-bold">Add assignment</h2>
+      <input type="hidden" id="assignment-index" value="-1">
+      <div class="mt-4 space-y-3">
+        <div><label class="label" for="assignment-name">Name</label><input id="assignment-name" class="field" required maxlength="40" placeholder="Midterm exam"></div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="label" for="assignment-max">Points possible</label><input id="assignment-max" type="number" min="0.01" step="any" class="field" required value="100"></div>
+          <div><label class="label" for="assignment-weight">Weight</label><input id="assignment-weight" type="number" min="0" step="any" class="field" required value="10"></div>
+        </div>
+        <p class="text-sm text-mute">Weights are relative. 10, 30, and 60 count the same as 10%, 30%, and 60%.</p>
+      </div>
+      <div class="mt-6 flex items-center justify-between gap-2">
+        <button type="button" id="assignment-delete" class="btn-danger hidden">Delete assignment</button>
+        <div class="ml-auto flex gap-2">
+          <button type="button" class="btn-line" data-close>Cancel</button>
+          <button type="submit" class="btn-solid">Save assignment</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" role="status" aria-live="polite" class="pointer-events-none fixed inset-x-0 bottom-5 z-50 flex justify-center px-4"></div>
+
+  <style type="text/tailwindcss">
+    @layer components {
+      .tab { @apply whitespace-nowrap rounded-t-lg px-4 py-2.5 text-sm font-medium text-chalk/80 hover:bg-chalk/10 hover:text-chalk focus-visible:outline focus-visible:outline-2 focus-visible:outline-mark; }
+      .tab[aria-selected="true"] { @apply bg-paper text-ink hover:bg-paper hover:text-ink; }
+    }
+  </style>
+
+  <!-- WebAssembly module produced by build.sh (public/wasm/class_manager.js + .wasm) -->
+  <script src="wasm/class_manager.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
